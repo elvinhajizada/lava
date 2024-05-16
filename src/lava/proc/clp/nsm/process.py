@@ -56,6 +56,8 @@ class Readout(AbstractProcess):
         # The id of the most recent winner prototype
         self.last_winner_id = Var(shape=(1,), init=0)
 
+        self.testing = Var(shape=(1,), init=0)
+
 
 class Allocator(AbstractProcess):
     """ Allocator process of CLP system. When triggered by other processes

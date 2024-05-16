@@ -10,6 +10,7 @@ from lava.magma.core.learning.learning_rule import Loihi2FLearningRule, \
     Loihi3FLearningRule
 from lava.magma.core.process.process import LogConfig
 from lava.magma.core.process.ports.ports import InPort
+from lava.magma.core.process.variable import Var
 
 
 class PrototypeLIF(LearningLIF):
@@ -50,3 +51,6 @@ class PrototypeLIF(LearningLIF):
         )
 
         self.reset_in = InPort(shape=shape)
+        # self.last_da = Var(shape=shape, init=0)
+        # self.goodness = Var(shape=shape, init=0)
+        # self.lr = Var(shape=shape, init=127*np.ones(shape=shape, dtype=int))

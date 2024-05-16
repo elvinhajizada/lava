@@ -23,21 +23,36 @@ class PyReadoutModel(PyLoihiProcessModel):
     This process will run in super host and will be the main interface
     process with the user.
     """
-    inference_in: PyInPort = LavaPyType(PyInPort.VEC_DENSE, np.int32,
-                                        precision=24)
+    inference_in: PyInPort = LavaPyType(PyInPort.VEC_DENSE, np.int32)
     label_in: PyInPort = LavaPyType(PyInPort.VEC_DENSE, np.int32)
 
     user_output: PyOutPort = LavaPyType(PyOutPort.VEC_DENSE, np.int32)
-    trigger_alloc: PyOutPort = LavaPyType(PyOutPort.VEC_DENSE, np.int32)
+    trigger_alloc: PyOutPort = LavaPyType(PyOutPort.VEC_DENSE, np.int32, precision=24)
     feedback: PyOutPort = LavaPyType(PyOutPort.VEC_DENSE, np.int32)
     proto_labels: np.ndarray = LavaPyType(np.ndarray, np.int32)
     last_winner_id: np.int32 = LavaPyType(np.ndarray, np.int32)
+    testing: np.int32 = LavaPyType(np.ndarray, np.int32)
 
     def run_spk(self) -> None:
-        # Read the output of the prototype neurons
-        output_vec = self.inference_in.recv()
+        
+        # print("Reading out")
+
         # Read the user-provided label
+        # print("trying to recv label")
         user_label = self.label_in.recv()[0]
+        # print("User labels are read:", user_label)
+
+        # Read the output of the prototype neurons
+        # print("trying to proto out")
+        output_vec = self.inference_in.recv()
+        # print("Prototype outputs are read:", output_vec)
+        # if self.inference_in.probe():
+        #     output_vec = self.inference_in.recv()
+        #     # print("Prototype outputs are read:", output_vec)
+        # else: 
+        #     # print("No proto output")
+        #     output_vec = np.zeros(shape=self.inference_in.shape)
+        
         # Feedback about the correctness of prediction. +1 if correct,
         # -1 if incorrect, 0 if no label is provided by the user at this point.
         infer_check = 0
@@ -51,12 +66,14 @@ class PyReadoutModel(PyLoihiProcessModel):
 
         # If any prototype neuron is active, then we go here. We assume there
         # is only one neuron active in the prototype population
+
+        
         if output_vec.any():
 
             # Find the id of the winner neuron and store it
             winner_proto_id = np.nonzero(output_vec)[0][0]
             self.last_winner_id = winner_proto_id
-
+            
             # Get the label of this neuron from the labels' list
             inferred_label = self.proto_labels[winner_proto_id]
 
@@ -70,9 +87,12 @@ class PyReadoutModel(PyLoihiProcessModel):
                 # So now this pseudo-label is our inferred label.
                 inferred_label = self.proto_labels[winner_proto_id]
 
+            # print("t=", self.time_step, "Inferred label:", inferred_label)
+            
+        # print("Pass 1")
         # Next we check if a user-provided label is available.
         if user_label != 0:
-
+            # print("t=", self.time_step, "User label: ", user_label)
             # If so we need to access the most recent winner's label,
             # assuming the temporal causality between the prediction by the
             # system and the providence of the label;l by the user
@@ -86,11 +106,13 @@ class PyReadoutModel(PyLoihiProcessModel):
             if last_inferred_label > 0:  # "Known Known class"
                 if last_inferred_label == user_label:
                     infer_check = 1
+                    # print("Correct")
                 else:
                     # If the error occurs, trigger allocation by sending an
                     # allocation signal
                     infer_check = -1
                     allocation_trigger = True
+                    # print("Error")
 
             # If this prototype has a pseudo-label, then we label it with
             # the user-provided label and do not send any feedback (because
@@ -99,16 +121,30 @@ class PyReadoutModel(PyLoihiProcessModel):
             elif last_inferred_label < 0:  # "Known Unknown class"
                 self.proto_labels[self.last_winner_id] = user_label
                 inferred_label = user_label
+                print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
 
+            # print("---------------------")
+
+        # print("Pass 2")
         # Send out the readout predicted label (if any) and the feedback
         # about the correctness of this prediction after user providing the
         # actual label
         self.user_output.send(np.array([inferred_label]))
+    
+        # print("Pass 3")
         self.feedback.send(np.array([infer_check]))
-        if allocation_trigger:
-            self.trigger_alloc.send(np.array([1]))
+        # print("Pass 4")
+
+        if self.testing == 1:
+            self.trigger_alloc.send(np.array([-1]))
         else:
-            self.trigger_alloc.send(np.array([0]))
+            if allocation_trigger:
+                self.trigger_alloc.send(np.array([1]))
+            else:
+                self.trigger_alloc.send(np.array([0]))
+        # print("Pass 5")
+        # print(inferred_label)
+        
 
 
 @implements(proc=Allocator, protocol=LoihiProtocol)
