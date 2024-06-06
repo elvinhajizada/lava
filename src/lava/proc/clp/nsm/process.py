@@ -35,7 +35,8 @@ class Readout(AbstractProcess):
 
     def __init__(self, *,
                  n_protos: int,
-                 proto_labels: ty.Optional[np.ndarray] = None) -> None:
+                 proto_labels: ty.Optional[np.ndarray] = None,
+                 supervised: ty.Optional[bool] = True) -> None:
         # If not provided by the user initialize it to the zeros
         if proto_labels is None:
             proto_labels = np.zeros(shape=(n_protos,), dtype=int)
@@ -57,7 +58,8 @@ class Readout(AbstractProcess):
         self.last_winner_id = Var(shape=(1,), init=0)
 
         self.testing = Var(shape=(1,), init=0)
-
+        self.supervised = Var(shape=(1,), init=int(supervised))
+        
 
 class Allocator(AbstractProcess):
     """ Allocator process of CLP system. When triggered by other processes

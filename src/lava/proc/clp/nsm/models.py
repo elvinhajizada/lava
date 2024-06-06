@@ -32,6 +32,7 @@ class PyReadoutModel(PyLoihiProcessModel):
     proto_labels: np.ndarray = LavaPyType(np.ndarray, np.int32)
     last_winner_id: np.int32 = LavaPyType(np.ndarray, np.int32)
     testing: np.int32 = LavaPyType(np.ndarray, np.int32)
+    supervised: np.int32 = LavaPyType(np.ndarray, np.int32)
 
     def run_spk(self) -> None:
         
@@ -87,7 +88,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 # So now this pseudo-label is our inferred label.
                 inferred_label = self.proto_labels[winner_proto_id]
 
-            # print("t=", self.time_step, "Inferred label:", inferred_label)
+                print("t=", self.time_step, "Allocated neuron", winner_proto_id)
             
         # print("Pass 1")
         # Next we check if a user-provided label is available.
@@ -107,7 +108,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 if last_inferred_label == user_label:
                     infer_check = 1
                     # print("Correct")
-                else:
+                elif self.supervised == 1:
                     # If the error occurs, trigger allocation by sending an
                     # allocation signal
                     infer_check = -1
