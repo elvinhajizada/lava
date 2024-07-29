@@ -33,6 +33,8 @@ class PrototypeLIF(LearningLIF):
             log_config: ty.Optional[LogConfig] = None,
             learning_rule: ty.Union[
                 Loihi2FLearningRule, Loihi3FLearningRule] = None,
+            tepoch: ty.Optional[int] = 1,
+            neuron_id: ty.Optional[np.ndarray] = None, 
             **kwargs,
     ) -> None:
         super().__init__(
@@ -47,6 +49,8 @@ class PrototypeLIF(LearningLIF):
             name=name,
             log_config=log_config,
             learning_rule=learning_rule,
+            tepoch = tepoch,
+            neuron_id = neuron_id,
             **kwargs,
         )
 
