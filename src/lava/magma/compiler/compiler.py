@@ -5,7 +5,7 @@
 import itertools
 import logging
 import os
-import pickle  # noqa # nosec
+import pickle  # noqa: S403 # nosec
 import typing as ty
 from collections import OrderedDict, defaultdict
 
@@ -231,8 +231,9 @@ class Compiler:
         if self._compile_config.get("cache", False):
             cache_dir = self._compile_config["cache_dir"]
             if os.path.exists(os.path.join(cache_dir, "cache")):
-                with open(os.path.join(cache_dir, "cache"), "rb") as cache_file:
-                    cache_object = pickle.load(cache_file)  # noqa # nosec
+                with open(os.path.join(cache_dir, "cache"), "rb") \
+                        as cache_file:
+                    cache_object = pickle.load(cache_file)  # noqa: S301 # nosec
 
                 proc_builders_values = cache_object["procname_to_proc_builder"]
                 proc_builders = {}
@@ -245,6 +246,9 @@ class Compiler:
                 print(f"\nBuilders and Channel Map loaded from "
                       f"Cache {cache_dir}\n")
                 return proc_builders, channel_map
+
+        # Get manual partitioning, if available
+        partitioning = self._compile_config.get("partitioning", None)
 
         # Create the global ChannelMap that is passed between
         # SubCompilers to communicate about Channels between Processes.
@@ -265,7 +269,8 @@ class Compiler:
             subcompilers.append(pg_subcompilers)
 
             # Compile this ProcGroup.
-            self._compile_proc_group(pg_subcompilers, channel_map)
+            self._compile_proc_group(pg_subcompilers, channel_map,
+                                     partitioning)
 
         # Flatten the list of all SubCompilers.
         subcompilers = list(itertools.chain.from_iterable(subcompilers))
@@ -282,7 +287,8 @@ class Compiler:
             # Validate All Processes are Named
             procname_to_proc_builder = {}
             for p, pb in proc_builders.items():
-                if p.name in procname_to_proc_builder or "Process_" in p.name:
+                if p.name in procname_to_proc_builder or \
+                        "Process_" in p.name:
                     msg = f"Unable to Cache. " \
                           f"Please give unique names to every process. " \
                           f"Violation Name: {p.name=}"
@@ -401,7 +407,8 @@ class Compiler:
 
     @staticmethod
     def _compile_proc_group(
-        subcompilers: ty.List[AbstractSubCompiler], channel_map: ChannelMap
+        subcompilers: ty.List[AbstractSubCompiler], channel_map: ChannelMap,
+        partitioning: ty.Dict[str, ty.Dict]
     ) -> None:
         """For a given list of SubCompilers that have been initialized with
         the Processes of a single ProcGroup, iterate through the compilation
@@ -417,6 +424,8 @@ class Compiler:
         channel_map : ChannelMap
             The global ChannelMap that contains information about Channels
             between Processes.
+        partitioning: ty.Dict
+            Optional manual mapping dictionary used by ncproc compiler.
         """
         channel_map_prev = None
 
@@ -429,7 +438,7 @@ class Compiler:
             for subcompiler in subcompilers:
                 # Compile the Processes registered with each SubCompiler and
                 # update the ChannelMap.
-                channel_map = subcompiler.compile(channel_map)
+                channel_map = subcompiler.compile(channel_map, partitioning)
 
     @staticmethod
     def _extract_proc_builders(
@@ -761,8 +770,8 @@ class Compiler:
                 model_ids: ty.List[int] = [p.id for p in sync_domain.processes]
 
                 rs_kwargs = {
-                    "c_builders" : list(c_builders.values()),
-                    "nc_builders" : list(nc_builders.values())
+                    "c_builders": list(c_builders.values()),
+                    "nc_builders": list(nc_builders.values())
                 }
                 if isinstance(run_cfg, AbstractLoihiHWRunCfg):
                     rs_kwargs["callback_fxs"] = run_cfg.callback_fxs

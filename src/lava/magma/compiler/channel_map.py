@@ -98,7 +98,8 @@ class ChannelMap(dict):
         return channel_map
 
     @classmethod
-    def _get_port_pairs_from_proc_groups(self, proc_groups: ty.List[ProcGroup]):
+    def _get_port_pairs_from_proc_groups(cls,
+                                         proc_groups: ty.List[ProcGroup]):
         """Loop over processes connectivity and get all connected port pairs."""
         processes = list(itertools.chain.from_iterable(proc_groups))
         port_pairs = []
@@ -109,7 +110,7 @@ class ChannelMap(dict):
             for src_port in src_ports:
                 dst_ports = src_port.get_dst_ports()
                 for dst_port in dst_ports:
-                    if self._is_leaf_process_port(dst_port, processes):
+                    if cls._is_leaf_process_port(dst_port, processes):
                         port_pairs.append(PortPair(src=src_port, dst=dst_port))
         return port_pairs
 
@@ -118,9 +119,9 @@ class ChannelMap(dict):
         dst_process = dst_port.process
         return True if dst_process in processes else False
 
-    def set_port_initializer(
-        self, port: AbstractPort, port_initializer: PortInitializer
-    ):
+    def set_port_initializer(self,
+                             port: AbstractPort,
+                             port_initializer: PortInitializer):
         if port in self._initializers_lookup.keys():
             raise AssertionError(
                 "An initializer for this port has already " "been assigned."
