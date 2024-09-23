@@ -33,7 +33,7 @@ class PrototypeLIF(LearningLIF):
             log_config: ty.Optional[LogConfig] = None,
             learning_rule: ty.Union[
                 Loihi2FLearningRule, Loihi3FLearningRule] = None,
-            tepoch: ty.Optional[int] = 1,
+            t_epoch: ty.Optional[int] = 1,
             neuron_id: ty.Optional[np.ndarray] = None, 
             **kwargs,
     ) -> None:
@@ -49,12 +49,12 @@ class PrototypeLIF(LearningLIF):
             name=name,
             log_config=log_config,
             learning_rule=learning_rule,
-            tepoch = tepoch,
+            t_epoch = t_epoch,
             neuron_id = neuron_id,
             **kwargs,
         )
 
         self.reset_in = InPort(shape=shape)
-        # self.last_da = Var(shape=shape, init=0)
-        # self.goodness = Var(shape=shape, init=0)
-        # self.lr = Var(shape=shape, init=127*np.ones(shape=shape, dtype=int))
+        self.last_da = Var(shape=shape, init=0)
+        self.goodness = Var(shape=shape, init=0)
+        self.lr = Var(shape=shape, init=127*np.ones(shape=shape, dtype=int))
