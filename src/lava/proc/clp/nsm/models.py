@@ -3,6 +3,7 @@
 # See: https://spdx.org/licenses/
 
 import numpy as np
+import random
 
 from lava.magma.core.sync.protocols.loihi_protocol import LoihiProtocol
 from lava.magma.core.model.py.ports import PyInPort, PyOutPort
@@ -35,7 +36,9 @@ class PyReadoutModel(PyLoihiProcessModel):
     supervised: np.int32 = LavaPyType(np.ndarray, np.int32)
 
     def run_spk(self) -> None:
-        
+        if self.time_step % 26 == 1:
+            print("-----------------------------------------------------------------")
+            print(self.time_step // 26)
         # print("Reading out")
 
         # Read the user-provided label
@@ -65,30 +68,70 @@ class PyReadoutModel(PyLoihiProcessModel):
         # Flag for allocation trigger
         allocation_trigger = False
 
+        next_alloc_id = (self.proto_labels == 0).argmax() if 0 in self.proto_labels else -1
+
         # If any prototype neuron is active, then we go here. We assume there
         # is only one neuron active in the prototype population
 
+        # Define the overflown values to check and remove
+        overflown_values = [1,256,257, 65536, 65537, 65792, 65793, 16777216, 16777217, 16777471,16777472]
+
+        # Use np.isin to create a mask that is True for values NOT in overflown_values
+        mask = ~np.isin(output_vec, overflown_values)
+
+        # Filter the array using the mask
+        output_vec = output_vec[mask] 
         
         if output_vec.any():
-
-            # Find the id of the winner neuron and store it
-            winner_proto_id = np.nonzero(output_vec)[0][0]
-            self.last_winner_id = winner_proto_id
             
-            # Get the label of this neuron from the labels' list
-            inferred_label = self.proto_labels[winner_proto_id]
+            curr_output = output_vec[np.nonzero(output_vec)] - 2
+            print(curr_output)
+            # Get labels for each ID in `ids`
+            voted_labels = self.proto_labels[curr_output]
+            print(voted_labels)
+
+            if 0 not in voted_labels:
+                # Count occurrences of each label
+                label_counts = np.bincount(voted_labels)
+                max_count = label_counts.max()
+
+                # Find all labels with the maximum count
+                candidates = np.flatnonzero(label_counts == max_count)
+
+                # Randomly select one of the labels with the maximum count
+                most_common_label = random.choice(candidates)
+
+                # Find IDs corresponding to the most common label
+                prototype_ids_with_winner_label = np.where(self.proto_labels[0:next_alloc_id+1] == most_common_label)[0]
+
+                # Randomly select one ID among the prototypes with the winning label
+                chosen_prototype_id = random.choice(prototype_ids_with_winner_label)
+                
+                self.last_winner_id = chosen_prototype_id
+                
+                # Get the label of this neuron from the labels' list
+                inferred_label = self.proto_labels[self.last_winner_id]
+
+            else:
+                self.last_winner_id = curr_output[-1]
+                inferred_label = 0
+
+            # print("Winner id:     ", self.last_winner_id)
+            # print("Inferred label:", inferred_label)
 
             # If this label is zero, that means this prototype is not labeled.
             if inferred_label == 0:
                 # So, we give a pseudo label to the unknown winner.
                 # These are negative temporary labels that is based on the id
                 # of the prototype and generated as follows.
-                self.proto_labels[winner_proto_id] = -1 * (winner_proto_id + 1)
+                self.proto_labels[self.last_winner_id] = -1 * (self.last_winner_id + 1)
 
                 # So now this pseudo-label is our inferred label.
-                inferred_label = self.proto_labels[winner_proto_id]
+                inferred_label = self.proto_labels[self.last_winner_id]
 
-                print("t=", self.time_step, "Allocated neuron", winner_proto_id)
+                print("t=", self.time_step, "Allocated neuron", self.last_winner_id)
+
+
             
         # print("Pass 1")
         # Next we check if a user-provided label is available.
@@ -97,32 +140,38 @@ class PyReadoutModel(PyLoihiProcessModel):
             # If so we need to access the most recent winner's label,
             # assuming the temporal causality between the prediction by the
             # system and the providence of the label;l by the user
-            last_inferred_label = self.proto_labels[self.last_winner_id]
+            # print("user label:", user_label)
+            if self.last_winner_id is not None:
+                last_inferred_label = self.proto_labels[self.last_winner_id]
 
-            # If the most recently predicted label (i.e. the one for the
-            # current input which is also the user-provided label refer to)
-            # is an actual label (not a pseudo one), then we check the
-            # correctness of the predicted label against user-provided one.
+                # If the most recently predicted label (i.e. the one for the
+                # current input which is also the user-provided label refer to)
+                # is an actual label (not a pseudo one), then we check the
+                # correctness of the predicted label against user-provided one.
 
-            if last_inferred_label > 0:  # "Known Known class"
-                if last_inferred_label == user_label:
-                    infer_check = 1
-                    # print("Correct")
-                elif self.supervised == 1:
-                    # If the error occurs, trigger allocation by sending an
-                    # allocation signal
-                    infer_check = -1
-                    allocation_trigger = True
-                    # print("Error")
+                if last_inferred_label > 0:  # "Known Known class"
+                    if last_inferred_label == user_label:
+                        infer_check = 1
+                        # print("Correct")
+                    elif self.supervised == 1:
+                        # If the error occurs, trigger allocation by sending an
+                        # allocation signal
+                        infer_check = -1
+                        allocation_trigger = True
+                        # print("Error")
 
-            # If this prototype has a pseudo-label, then we label it with
-            # the user-provided label and do not send any feedback (because
-            # we did not have an actual prediction)
+                # If this prototype has a pseudo-label, then we label it with
+                # the user-provided label and do not send any feedback (because
+                # we did not have an actual prediction)
 
-            elif last_inferred_label < 0:  # "Known Unknown class"
-                self.proto_labels[self.last_winner_id] = user_label
-                inferred_label = user_label
-                print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
+                elif last_inferred_label < 0:  # "Known Unknown class"
+                    self.proto_labels[self.last_winner_id] = user_label
+                    inferred_label = user_label
+                    # print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
+
+            # There were more than one winner for sure during the last inference
+            else:
+                allocation_trigger = True
 
             # print("---------------------")
 
