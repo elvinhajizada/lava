@@ -36,20 +36,21 @@ class PyReadoutModel(PyLoihiProcessModel):
     supervised: np.int32 = LavaPyType(np.ndarray, np.int32)
 
     def run_spk(self) -> None:
-        if self.time_step % 26 == 1:
-            print("-----------------------------------------------------------------")
-            print(self.time_step // 26)
+        # if self.time_step % 26 == 1:
+        #     print("-----------------------------------------------------------------")
+        #     print(self.time_step // 26)
         # print("Reading out")
 
         # Read the user-provided label
         # print("trying to recv label")
         user_label = self.label_in.recv()[0]
-        # print("User labels are read:", user_label)
+        # print("Time", ((self.time_step-1) % 25) + 1 , "User labels are read:", user_label)
 
         # Read the output of the prototype neurons
         # print("trying to proto out")
         output_vec = self.inference_in.recv()
-        # print("Prototype outputs are read:", output_vec)
+        # if output_vec.sum() > 0:
+        #     print("Prototype outputs are read:", output_vec)
         # if self.inference_in.probe():
         #     output_vec = self.inference_in.recv()
         #     # print("Prototype outputs are read:", output_vec)
@@ -85,22 +86,23 @@ class PyReadoutModel(PyLoihiProcessModel):
         if output_vec.any():
             
             curr_output = output_vec[np.nonzero(output_vec)] - 2
-            print(curr_output)
+            # print(curr_output)
             # Get labels for each ID in `ids`
             voted_labels = self.proto_labels[curr_output]
-            print(voted_labels)
+            # print(voted_labels)
 
             if 0 not in voted_labels:
                 # Count occurrences of each label
+                # print("Check 1")
                 label_counts = np.bincount(voted_labels)
                 max_count = label_counts.max()
-
+                # print("Check 2")
                 # Find all labels with the maximum count
                 candidates = np.flatnonzero(label_counts == max_count)
 
                 # Randomly select one of the labels with the maximum count
                 most_common_label = random.choice(candidates)
-
+                # print("Check 3")
                 # Find IDs corresponding to the most common label
                 prototype_ids_with_winner_label = np.where(self.proto_labels[0:next_alloc_id+1] == most_common_label)[0]
 
@@ -108,7 +110,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 chosen_prototype_id = random.choice(prototype_ids_with_winner_label)
                 
                 self.last_winner_id = chosen_prototype_id
-                
+                # print("Check 4")
                 # Get the label of this neuron from the labels' list
                 inferred_label = self.proto_labels[self.last_winner_id]
 
@@ -129,7 +131,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 # So now this pseudo-label is our inferred label.
                 inferred_label = self.proto_labels[self.last_winner_id]
 
-                print("t=", self.time_step, "Allocated neuron", self.last_winner_id)
+                # print("t=", self.time_step, "Allocated neuron", self.last_winner_id)
 
 
             
