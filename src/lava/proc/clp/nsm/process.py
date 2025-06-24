@@ -36,7 +36,9 @@ class Readout(AbstractProcess):
     def __init__(self, *,
                  n_protos: int,
                  proto_labels: ty.Optional[np.ndarray] = None,
-                 supervised: ty.Optional[bool] = True) -> None:
+                 supervised: ty.Optional[bool] = True,
+                 n_steps_per_sample: ty.Optional[int]=26,
+                 verbose: ty.Optional[int]=0) -> None:
         # If not provided by the user initialize it to the zeros
         if proto_labels is None:
             proto_labels = np.zeros(shape=(n_protos,), dtype=int)
@@ -59,6 +61,8 @@ class Readout(AbstractProcess):
 
         self.testing = Var(shape=(1,), init=0)
         self.supervised = Var(shape=(1,), init=int(supervised))
+        self.n_steps_per_sample = Var(shape=(1,), init=int(n_steps_per_sample))
+        self.verbose = Var(shape=(1,), init=verbose)
         
 
 class Allocator(AbstractProcess):

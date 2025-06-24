@@ -4,6 +4,7 @@
 
 import numpy as np
 import random
+random.seed(42)  # Set your desired seed here
 
 from lava.magma.core.sync.protocols.loihi_protocol import LoihiProtocol
 from lava.magma.core.model.py.ports import PyInPort, PyOutPort
@@ -34,17 +35,22 @@ class PyReadoutModel(PyLoihiProcessModel):
     last_winner_id: np.int32 = LavaPyType(np.ndarray, np.int32)
     testing: np.int32 = LavaPyType(np.ndarray, np.int32)
     supervised: np.int32 = LavaPyType(np.ndarray, np.int32)
+    n_steps_per_sample: np.int32 = LavaPyType(np.ndarray, np.int32)
+    verbose: np.int32 = LavaPyType(np.ndarray, np.int32)
 
     def run_spk(self) -> None:
-        # if self.time_step % 26 == 1:
-        #     print("-----------------------------------------------------------------")
-        #     print(self.time_step // 26)
-        # print("Reading out")
+        if self.time_step % self.n_steps_per_sample == 1 and self.verbose == 1:
+            print("-----------------------------------------------------------------")
+            print(self.time_step // self.n_steps_per_sample)
+        if self.verbose == 3:
+            print("---------------------")
+            print("Time step:", self.time_step)
 
         # Read the user-provided label
         # print("trying to recv label")
         user_label = self.label_in.recv()[0]
         # print("Time", ((self.time_step-1) % 25) + 1 , "User labels are read:", user_label)
+        # print("User labels are read:", user_label)
 
         # Read the output of the prototype neurons
         # print("trying to proto out")
@@ -82,9 +88,13 @@ class PyReadoutModel(PyLoihiProcessModel):
 
         # Filter the array using the mask
         output_vec = output_vec[mask] 
+
+        
         
         if output_vec.any():
-            
+            if self.verbose == 2:
+                print("time step:", int((self.time_step-1) % self.n_steps_per_sample)+1)
+                print("output_vec:", output_vec)
             curr_output = output_vec[np.nonzero(output_vec)] - 2
             # print(curr_output)
             # Get labels for each ID in `ids`
@@ -92,34 +102,40 @@ class PyReadoutModel(PyLoihiProcessModel):
             # print(voted_labels)
 
             if 0 not in voted_labels:
-                # Count occurrences of each label
-                # print("Check 1")
-                label_counts = np.bincount(voted_labels)
-                max_count = label_counts.max()
-                # print("Check 2")
-                # Find all labels with the maximum count
-                candidates = np.flatnonzero(label_counts == max_count)
+                if len(voted_labels) == 1:
+                    # Only one label voted, take it directly
+                    inferred_label = voted_labels[0]
+                    self.last_winner_id = curr_output[0]
+                else:
+                    # Count occurrences of each label
+                    # print("Check 1")
+                    label_counts = np.bincount(voted_labels)
+                    max_count = label_counts.max()
+                    # print("Check 2")
+                    # Find all labels with the maximum count
+                    candidates = np.flatnonzero(label_counts == max_count)
 
-                # Randomly select one of the labels with the maximum count
-                most_common_label = random.choice(candidates)
-                # print("Check 3")
-                # Find IDs corresponding to the most common label
-                prototype_ids_with_winner_label = np.where(self.proto_labels[0:next_alloc_id+1] == most_common_label)[0]
+                    # Randomly select one of the labels with the maximum count
+                    most_common_label = random.choice(candidates)
+                    # print("Check 3")
+                    # Find IDs corresponding to the most common label
+                    prototype_ids_with_winner_label = np.where(self.proto_labels[0:next_alloc_id+1] == most_common_label)[0]
 
-                # Randomly select one ID among the prototypes with the winning label
-                chosen_prototype_id = random.choice(prototype_ids_with_winner_label)
-                
-                self.last_winner_id = chosen_prototype_id
-                # print("Check 4")
-                # Get the label of this neuron from the labels' list
-                inferred_label = self.proto_labels[self.last_winner_id]
+                    # Randomly select one ID among the prototypes with the winning label
+                    chosen_prototype_id = random.choice(prototype_ids_with_winner_label)
+                    
+                    self.last_winner_id = chosen_prototype_id
+                    # print("Check 4")
+                    # Get the label of this neuron from the labels' list
+                    inferred_label = self.proto_labels[self.last_winner_id]
 
             else:
                 self.last_winner_id = curr_output[-1]
                 inferred_label = 0
 
-            # print("Winner id:     ", self.last_winner_id)
-            # print("Inferred label:", inferred_label)
+            if self.verbose == 2:
+                print("Winner id:     ", self.last_winner_id)
+                print("Inferred label:", inferred_label)
 
             # If this label is zero, that means this prototype is not labeled.
             if inferred_label == 0:
@@ -130,8 +146,8 @@ class PyReadoutModel(PyLoihiProcessModel):
 
                 # So now this pseudo-label is our inferred label.
                 inferred_label = self.proto_labels[self.last_winner_id]
-
-                # print("t=", self.time_step, "Allocated neuron", self.last_winner_id)
+                if self.verbose == 1:
+                    print("t=", self.time_step, "Allocated neuron", self.last_winner_id)
 
 
             
@@ -142,7 +158,9 @@ class PyReadoutModel(PyLoihiProcessModel):
             # If so we need to access the most recent winner's label,
             # assuming the temporal causality between the prediction by the
             # system and the providence of the label;l by the user
-            # print("user label:", user_label)
+            if self.verbose == 2:
+                print("time step:", int((self.time_step-1) % self.n_steps_per_sample)+1)
+                print("user label:", user_label)
             if self.last_winner_id is not None:
                 last_inferred_label = self.proto_labels[self.last_winner_id]
 
@@ -154,13 +172,13 @@ class PyReadoutModel(PyLoihiProcessModel):
                 if last_inferred_label > 0:  # "Known Known class"
                     if last_inferred_label == user_label:
                         infer_check = 1
-                        # print("Correct")
+                        if self.verbose == 2: print("Correct")
                     elif self.supervised == 1:
                         # If the error occurs, trigger allocation by sending an
                         # allocation signal
                         infer_check = -1
                         allocation_trigger = True
-                        # print("Error")
+                        if self.verbose == 2: print("Error")
 
                 # If this prototype has a pseudo-label, then we label it with
                 # the user-provided label and do not send any feedback (because
@@ -169,13 +187,11 @@ class PyReadoutModel(PyLoihiProcessModel):
                 elif last_inferred_label < 0:  # "Known Unknown class"
                     self.proto_labels[self.last_winner_id] = user_label
                     inferred_label = user_label
-                    # print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
+                    if self.verbose == 1: print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
 
             # There were more than one winner for sure during the last inference
             else:
                 allocation_trigger = True
-
-            # print("---------------------")
 
         # print("Pass 2")
         # Send out the readout predicted label (if any) and the feedback
@@ -196,6 +212,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 self.trigger_alloc.send(np.array([0]))
         # print("Pass 5")
         # print(inferred_label)
+        # print("---------------------")
         
 
 
