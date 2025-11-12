@@ -57,4 +57,4 @@ class PrototypeLIF(LearningLIF):
         self.reset_in = InPort(shape=shape)
         self.last_da = Var(shape=shape, init=0)
         self.goodness = Var(shape=shape, init=0)
-        self.lr = Var(shape=shape, init=127*np.ones(shape=shape, dtype=int))
+        self.lr = Var(shape=shape, init=3*np.ones(shape=shape, dtype=int))

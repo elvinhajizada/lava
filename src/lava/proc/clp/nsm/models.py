@@ -39,7 +39,7 @@ class PyReadoutModel(PyLoihiProcessModel):
     verbose: np.int32 = LavaPyType(np.ndarray, np.int32)
 
     def run_spk(self) -> None:
-        if self.time_step % self.n_steps_per_sample == 1 and self.verbose == 1:
+        if (self.time_step % self.n_steps_per_sample == 1) and self.verbose >= 1:
             print("-----------------------------------------------------------------")
             print(self.time_step // self.n_steps_per_sample)
         if self.verbose == 3:
@@ -92,7 +92,7 @@ class PyReadoutModel(PyLoihiProcessModel):
         
         
         if output_vec.any():
-            if self.verbose == 2:
+            if self.verbose >= 2:
                 print("time step:", int((self.time_step-1) % self.n_steps_per_sample)+1)
                 print("output_vec:", output_vec)
             curr_output = output_vec[np.nonzero(output_vec)] - 2
@@ -133,7 +133,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 self.last_winner_id = curr_output[-1]
                 inferred_label = 0
 
-            if self.verbose == 2:
+            if self.verbose >= 2:
                 print("Winner id:     ", self.last_winner_id)
                 print("Inferred label:", inferred_label)
 
@@ -146,7 +146,7 @@ class PyReadoutModel(PyLoihiProcessModel):
 
                 # So now this pseudo-label is our inferred label.
                 inferred_label = self.proto_labels[self.last_winner_id]
-                if self.verbose == 1:
+                if self.verbose >= 1:
                     print("t=", self.time_step, "Allocated neuron", self.last_winner_id)
 
 
@@ -158,7 +158,7 @@ class PyReadoutModel(PyLoihiProcessModel):
             # If so we need to access the most recent winner's label,
             # assuming the temporal causality between the prediction by the
             # system and the providence of the label;l by the user
-            if self.verbose == 2:
+            if self.verbose >= 2:
                 print("time step:", int((self.time_step-1) % self.n_steps_per_sample)+1)
                 print("user label:", user_label)
             if self.last_winner_id is not None:
@@ -172,13 +172,13 @@ class PyReadoutModel(PyLoihiProcessModel):
                 if last_inferred_label > 0:  # "Known Known class"
                     if last_inferred_label == user_label:
                         infer_check = 1
-                        if self.verbose == 2: print("Correct")
+                        if self.verbose >= 2: print("Correct")
                     elif self.supervised == 1:
                         # If the error occurs, trigger allocation by sending an
                         # allocation signal
                         infer_check = -1
                         allocation_trigger = True
-                        if self.verbose == 2: print("Error")
+                        if self.verbose >= 2: print("Error")
 
                 # If this prototype has a pseudo-label, then we label it with
                 # the user-provided label and do not send any feedback (because
@@ -187,7 +187,7 @@ class PyReadoutModel(PyLoihiProcessModel):
                 elif last_inferred_label < 0:  # "Known Unknown class"
                     self.proto_labels[self.last_winner_id] = user_label
                     inferred_label = user_label
-                    if self.verbose == 1: print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
+                    if self.verbose >= 1: print("New label ", user_label, " assigned to proto id ", self.last_winner_id)
 
             # There were more than one winner for sure during the last inference
             else:
